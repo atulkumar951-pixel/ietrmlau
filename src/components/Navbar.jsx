@@ -1,0 +1,507 @@
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useSihAuth } from "../context/SihAuthContext";
+import ParticipantAvatar from "./ParticipantAvatar";
+import { LogOut } from "lucide-react";
+
+function Navbar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [invitationCount, setInvitationCount] = useState(0);
+
+  const { user, isAuthenticated, logout, loading: authLoading } = useSihAuth();
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const handleLogout = async () => {
+    const result = await logout();
+
+    if (result.success) {
+      setMenuOpen(false);
+      navigate("/sih/login");
+    } else {
+      alert(result.message);
+    }
+  };
+
+  // ==========================================
+  // SCROLL
+  // ==========================================
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 30) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthenticated || !user?._id) {
+      setInvitationCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchInvitationCount = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/invitations/my`,
+          {
+            credentials: "include",
+          }
+        );
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setInvitationCount(0);
+          }
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!cancelled) {
+          setInvitationCount(data.data?.length || 0);
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch invitation count:",
+          error
+        );
+      }
+    };
+
+    // Initial fetch
+    fetchInvitationCount();
+
+    // Check for new invitations every 5 seconds
+    const interval = setInterval(
+      fetchInvitationCount,
+      5000
+    );
+
+    // Still keep your local event for instant updates
+    window.addEventListener(
+      "sih-invitations-changed",
+      fetchInvitationCount
+    );
+
+    return () => {
+      cancelled = true;
+
+      clearInterval(interval);
+
+      window.removeEventListener(
+        "sih-invitations-changed",
+        fetchInvitationCount
+      );
+    };
+  }, [
+    authLoading,
+    isAuthenticated,
+    user?._id,
+  ]);
+
+  const userTeamId =
+    user?.participantId?.teamId?._id ||
+    user?.participantId?.teamId;
+
+  const userParticipantId =
+    user?.participantId?._id ||
+    user?.participantId;
+
+  return (
+    <header
+      className={`h-15 min-w-full sm:h-20 fixed top-0 left-0 right-0 z-50 ${isScrolled ? "glass py-3" : "bg-transparent py-5"
+        }`}
+    >
+      {/* ==========================================
+          MAIN NAVBAR
+      =========================================== */}
+
+      <nav className="px-4 sm:px-6 flex items-center justify-between animate-[fadeIn_1s_ease-in-out]">
+        {/* ========================================
+            LOGO
+        ========================================= */}
+
+        <div className="tittle">
+          <Link
+            to="/"
+            className="text-xl font-bold tracking-tight hover:text-primary flex justify-center items-center gap-2"
+          >
+            <span>
+              <img
+                src="/images/communityLogo.png"
+                alt="CommunityLogo"
+                className="h-8 w-10 rounded-xl"
+              />
+            </span>
+
+            <span>IET STUDENTS COMMUNITY</span>
+          </Link>
+        </div>
+
+        {/* ========================================
+            DESKTOP NAVIGATION
+        ========================================= */}
+
+        <div className="hidden md:flex gap-1 items-center">
+          <div className="links glass rounded-full px-2 py-1 flex items-center gap-1">
+            {/* Home */}
+
+            <Link
+              to="/"
+              className={`px-4 py-2 text-sm rounded-full ${location.pathname === "/"
+                ? "bg-surface text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface"
+                }`}
+            >
+              Home
+            </Link>
+
+            {/* Events */}
+
+            <Link
+              to="/events"
+              className={`px-4 py-2 text-sm rounded-full ${location.pathname === "/events"
+                ? "bg-surface text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface"
+                }`}
+            >
+              Events
+            </Link>
+
+            {/* Home */}
+
+            <Link
+              to="/sih"
+              className={`px-4 py-2 text-sm rounded-full ${location.pathname === "/sih"
+                ? "bg-surface text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface"
+                }`}
+            >
+              SIH
+            </Link>
+
+            {/* Members */}
+
+            {/* <Link
+              to="/members"
+              className={`px-4 py-2 text-sm rounded-full ${location.pathname === "/members"
+                ? "bg-surface text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-surface"
+                }`}
+            >
+              Members
+            </Link> */}
+          </div>
+        </div>
+
+        {/* ========================================
+            DESKTOP SIH AUTH
+        ========================================= */}
+
+
+        <div
+          className={`
+    hidden
+    items-center
+    gap-2
+    ${isAuthenticated ? "md:flex" : "md:hidden"}
+  `}
+        >
+          {isAuthenticated ? (
+            <>
+              {/* Invitations */}
+              <Link
+                to="/sih/invitations"
+                className={`
+          relative
+          flex
+          items-center
+          gap-2
+          rounded-xl
+          border
+          px-4
+          py-2
+          text-sm
+          font-medium
+          transition-all
+          duration-300
+          ${location.pathname === "/sih/invitations"
+                    ? "border-primary/30 bg-primary/10 text-primary shadow-[0_0_18px_rgba(32,178,166,0.08)]"
+                    : "border-white/10 bg-white/5 text-white/60 hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                  }
+        `}
+              >
+                <span>Invitations</span>
+
+                {invitationCount > 0 && (
+                  <span
+                    className="
+              flex
+              h-5
+              min-w-5
+              items-center
+              justify-center
+              rounded-full
+              bg-primary
+              px-1
+              text-[10px]
+              font-bold
+              text-white
+              shadow-[0_0_12px_rgba(32,178,166,0.35)]
+            "
+                  >
+                    {invitationCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* User */}
+              <div
+                onClick={
+                  userTeamId ? () => navigate(`/sih/teams/${userTeamId}`) :
+                  ()  => navigate(`/sih/participants/${userParticipantId}`)
+                }
+                className="
+          flex
+          items-center
+          gap-2.5
+          rounded-xl
+          border
+          border-white/10
+          bg-white/5
+          px-3
+          py-1.5
+          backdrop-blur-md
+          cursor-pointer
+          hover:bg-primary/10
+          hover:border-primary/30
+          group
+        "
+              >
+                <ParticipantAvatar
+                  src={user?.participantId?.profileImage}
+                  name={user?.participantId?.name}
+                  size="h-8 w-8"
+                  className="
+            rounded-full
+            border
+            border-primary/20
+            bg-primary/10
+          "
+                  textClassName="text-xs font-semibold text-primary "
+                />
+
+                <span className="max-w-32 truncate text-sm font-medium text-white/70 group-hover:text-primary">
+                  {user?.participantId?.name || "Participant"}
+                </span>
+              </div>
+
+              {/* Logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="
+          rounded-xl
+          border
+          border-red-500/20
+          bg-red-500/5
+          px-4
+          py-2
+          text-sm
+          font-medium
+          text-red-400
+          transition-all
+          duration-300
+          hover:border-red-500/40
+          hover:bg-red-500/10
+          hover:text-red-300
+          active:scale-95
+          cursor-pointer
+        "
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </>
+          ) : ""}
+        </div>
+
+        {/* ========================================
+            MOBILE MENU BUTTON
+        ========================================= */}
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="md:hidden text-2xl text-primary transition-all duration-300 ease-in-out hover:scale-110 active:scale-95"
+        >
+          {menuOpen ? "✖" : "☰"}
+        </button>
+      </nav>
+
+      {/* ==========================================
+          MOBILE MENU
+      =========================================== */}
+
+      <div
+        className={`md:hidden mt-6 mx-4 rounded-xl py-4 flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out ${location.pathname === "/"
+          ? "bg-linear-to-b from-primary/5 via-black/90 to-primary/10"
+          : "bg-background/90"
+          } ${menuOpen
+            ? "opacity-100 translate-y-0 pointer-events-auto"
+            : "opacity-0 -translate-y-4 pointer-events-none"
+          }`}
+      >
+        {/* Home */}
+
+        <Link
+          to="/"
+          onClick={() => setMenuOpen(false)}
+          className="w-full flex justify-center active:bg-primary/10 rounded-2xl h-8 items-center transition-all duration-100 ease-in-out z-10 text-foreground active:scale-150"
+        >
+          Home
+        </Link>
+
+        {/* Events */}
+
+        <Link
+          to="/events"
+          onClick={() => setMenuOpen(false)}
+          className="w-full flex justify-center active:bg-primary/10 rounded-2xl h-8 items-center transition-all duration-100 ease-in-out z-10 text-foreground active:scale-150"
+        >
+          Events
+        </Link>
+
+        <Link
+              to="/sih"
+              className="w-full flex justify-center active:bg-primary/10 rounded-2xl h-8 items-center transition-all duration-100 ease-in-out z-10 text-foreground active:scale-150"
+            >
+              SIH
+            </Link>
+
+        {/* Members */}
+
+        {/* <Link
+          to="/members"
+          onClick={() => setMenuOpen(false)}
+          className="w-full flex justify-center active:bg-primary/10 rounded-2xl h-8 items-center transition-all duration-100 ease-in-out z-10 text-foreground active:scale-150"
+        >
+          Members
+        </Link> */}
+
+        {/* RMLAU Logo */}
+
+        <a href="https://www.rmlau.ac.in/" target="_blank" rel="noreferrer">
+          <img
+            src="/images/rmlauLogo.png"
+            alt="RMLAU Logo"
+            className="bg-transparent h-8 w-8 rounded-xl active:scale-1000 transition-all duration-300 z-50"
+          />
+        </a>
+
+        {/* ========================================
+            MOBILE SIH AUTH
+        ========================================= */}
+
+        <div className={`${location.pathname.includes("/sih") ? isAuthenticated ? "flex" : "hidden" : ""
+          } `}>
+
+
+          {isAuthenticated && (
+            <div className="flex justify-evenly items-center gap-3">
+              <Link
+                to="/sih/invitations"
+                className={`
+          relative
+          flex
+          items-center
+          gap-2
+          rounded-xl
+          border
+          px-4
+          py-2
+          text-sm
+          font-medium
+          transition-all
+          duration-300
+          ${location.pathname === "/sih/invitations"
+                    ? "border-primary/30 bg-primary/10 text-primary shadow-[0_0_18px_rgba(32,178,166,0.08)]"
+                    : "border-white/10 bg-white/5 text-white/60 hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                  }
+        `}
+              >
+                <span>Invitations</span>
+
+                {invitationCount > 0 && (
+                  <span
+                    className="
+              flex
+              h-5
+              min-w-5
+              items-center
+              justify-center
+              rounded-full
+              bg-primary
+              px-1
+              text-[10px]
+              font-bold
+              text-white
+              shadow-[0_0_12px_rgba(32,178,166,0.35)]
+            "
+                  >
+                    {invitationCount}
+                  </span>
+                )}
+              </Link>
+              <span onClick={
+                  userTeamId ? () => navigate(`/sih/teams/${userTeamId}`) :
+                  ()  => navigate(`/sih/participants/${userParticipantId}`)
+                } className="flex items-center gap-2 text-sm text-foreground">
+                <ParticipantAvatar
+                  onClick = {() => navigate(`/sih/participants/${user?.participantId}`)}
+                  src={user?.participantId?.profileImage}
+                  name={user?.participantId?.name}
+                  size="h-7 w-7"
+                  className="rounded-full bg-primary/10 cursor-pointer"
+                  textClassName="text-xs font-semibold text-primary"
+                />
+                {user?.participantId?.name || "Participant"}
+              </span>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-xl border border-red-500/30 px-4 py-2 text-sm text-red-500 transition hover:bg-red-500/10"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+
+        </div>
+
+      </div>
+    </header>
+  );
+}
+
+export default Navbar;
